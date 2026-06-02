@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gymuser
+          POSTGRES_PASSWORD: gympass
+          POSTGRES_DB: gymreviews
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gymuser -d gymreviews"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          TEST_MODE: 'true'
+          DATABASE_URL: postgresql://gymuser:gympass@localhost:5432/gymreviews
+          CLIENT_ORIGIN: http://localhost:5173
+        run: npm test
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+        env:
+          VITE_API_URL: http://localhost:3000

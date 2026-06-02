@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gymuser
+      POSTGRES_PASSWORD: gympass
+      POSTGRES_DB: gymreviews
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gymuser -d gymreviews']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    volumes:
+      - ../backend/firebase/firebase-service-account.local.json:/app/firebase/firebase-service-account.local.json:ro
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://gymuser:gympass@db:5432/gymreviews
+      CLIENT_ORIGIN: http://localhost:8080
+      COOKIE_SECURE: 'false'
+      GOOGLE_APPLICATION_CREDENTIALS: ./firebase/firebase-service-account.local.json
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3000
+    ports:
+      - '8080:80'
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
